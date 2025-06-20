@@ -1,66 +1,82 @@
-package com.project.applicationa.utils;
+package com.project.applicationa.utils
 
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
+object CryptoHelper {
+    private const val KEY_ALIAS = "AppSymmetricKey"
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
+    @get:Throws(Exception::class)
+    val orCreateKey: SecretKey
+        get() {
+            val keyStore =
+                KeyStore.getInstance(ANDROID_KEYSTORE)
+            keyStore.load(null)
 
-public class CryptoHelper {
-    private static final String KEY_ALIAS = "AppSymmetricKey";
-
-    public static SecretKey getOrCreateKey() throws Exception {
-        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-        keyStore.load(null);
-
-        if (!keyStore.containsAlias(KEY_ALIAS)) {
-            KeyGenerator keyGen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-            keyGen.init(
-                    new KeyGenParameterSpec.Builder(KEY_ALIAS,
-                            KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                            .build()
-            );
-            return keyGen.generateKey();
+            if (!keyStore.containsAlias(KEY_ALIAS)) {
+                val keyGen = KeyGenerator.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES,
+                    ANDROID_KEYSTORE
+                )
+                keyGen.init(
+                    KeyGenParameterSpec.Builder(
+                        KEY_ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                    )
+                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .build()
+                )
+                return keyGen.generateKey()
+            }
+            return (keyStore.getKey(KEY_ALIAS, null) as SecretKey)
         }
-        return ((SecretKey) keyStore.getKey(KEY_ALIAS, null));
+
+    @Throws(Exception::class)
+    fun encrypt(plainText: String): ByteArray {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val key = orCreateKey
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+
+        val iv = cipher.iv
+        val ciphertext = cipher.doFinal(plainText.toByteArray(StandardCharsets.UTF_8))
+
+        val buffer = ByteBuffer.allocate(4 + iv.size + ciphertext.size)
+        buffer.putInt(iv.size)
+        buffer.put(iv)
+        buffer.put(ciphertext)
+
+        return buffer.array()
     }
 
-    public static byte[] encrypt(String plainText) throws Exception {
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        SecretKey key = getOrCreateKey();
-        cipher.init(Cipher.ENCRYPT_MODE, key);
+    @Throws(Exception::class)
+    fun decrypt(encryptedData: ByteArray): String {
+        val buffer = ByteBuffer.wrap(encryptedData)
+        val ivLength = buffer.getInt()
+        val iv = ByteArray(ivLength)
+        buffer[iv]
+        val cipherText = ByteArray(buffer.remaining())
+        buffer[cipherText]
 
-        byte[] iv = cipher.getIV();
-        byte[] ciphertext = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            orCreateKey, GCMParameterSpec(128, iv)
+        )
+        val plainText = cipher.doFinal(cipherText)
 
-        ByteBuffer buffer = ByteBuffer.allocate(4 + iv.length + ciphertext.length);
-        buffer.putInt(iv.length);
-        buffer.put(iv);
-        buffer.put(ciphertext);
-
-        return buffer.array();
+        return String(plainText, StandardCharsets.UTF_8)
     }
 
-    public static String decrypt(byte[] encryptedData) throws Exception {
-        ByteBuffer buffer = ByteBuffer.wrap(encryptedData);
-        int ivLength = buffer.getInt();
-        byte[] iv = new byte[ivLength];
-        buffer.get(iv);
-        byte[] cipherText = new byte[buffer.remaining()];
-        buffer.get(cipherText);
-
-        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), new GCMParameterSpec(128, iv));
-        byte[] plainText = cipher.doFinal(cipherText);
-
-        return new String(plainText, StandardCharsets.UTF_8);
+    fun String.performEncryption(): ByteArray {
+        return encrypt(this)
     }
 }

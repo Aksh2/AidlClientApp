@@ -26,11 +26,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.project.applicationa.ui.theme.ApplicationaTheme
 import com.project.applicationa.utils.CryptoHelper
+import com.project.applicationa.utils.CryptoHelper.performEncryption
 
+
+private const val TAG = "ClientApp"
 
 class MainActivity : ComponentActivity() {
     var encryptionService: IEncryptionService? = null
-
     private val connection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
             encryptionService = IEncryptionService.Stub.asInterface(p1)
@@ -60,25 +62,28 @@ class MainActivity : ComponentActivity() {
     private fun bindToService() {
         val intent = Intent("com.project.applicationb.SecureEncryptionService")
         intent.setPackage("com.project.applicationb")
-        Log.d("ClientApp", "Binding to service")
+        Log.d(TAG, "Binding to service")
         val result = bindService(intent, connection, Context.BIND_AUTO_CREATE)
-        Log.d("ClientApp", "Binding result: $result")
-        Log.d("ClientApp", "IntefaceName: ${IEncryptionService::class.java.name}")
+        Log.d(TAG, "Binding result: $result")
+        Log.d(TAG, "IntefaceName: ${IEncryptionService::class.java.name}")
 
     }
 
 }
 
+private
+
+
 @Composable
 fun RenderInfoScreen(modifier: Modifier = Modifier, encryptionService: IEncryptionService?) {
-    var result by remember { mutableStateOf("No Response") }
+    var result by remember { mutableStateOf(NO_RESPONSE) }
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Welcome to App A (Client App)",
+            text = HEADING,
             modifier = modifier
         )
         Text(
@@ -86,20 +91,28 @@ fun RenderInfoScreen(modifier: Modifier = Modifier, encryptionService: IEncrypti
                     "Current id:${Thread.currentThread().id} \n" +
                     "current pid:${android.os.Process.myPid()} \n"
         )
-        Text(text = "Response: $result")
+        Text(text = "$RESPONSE $result")
         Button(onClick = {
             Log.d(
-                "Client", "Sending secure message in thread:${Thread.currentThread().name} \n" +
+                TAG, "Sending secure message in thread:${Thread.currentThread().name} \n" +
                         "id:${Thread.currentThread().id} \n" +
                         "pid:${android.os.Process.myPid()} \n"
             )
-           val response = encryptionService?.processEncrypted("Hello from client !".toByteArray())
-           Log.d("Client", "Response: $response")
+
+            val response = try {
+                encryptionService?.processEncrypted(MESSAGE.performEncryption()) ?: byteArrayOf()
+            } catch (e: Exception) {
+                byteArrayOf()
+            }
+            val decryptedResponse = CryptoHelper.decrypt(response)
+            result = decryptedResponse
+            Log.d(TAG, "Response: $response")
             result = response.toString()
         }) {
-            Text(text = "Send Secure Message")
+            Text(text = SEND_SECURE_MESSAGE)
         }
     }
+
 
 }
 
