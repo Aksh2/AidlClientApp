@@ -8,7 +8,11 @@ This is the client app (Application A) in the AIDL IPC.
 
 ### IPC Methodology - AIDL
 
+### DEMO
+
+
 
 
 ### Sequence Diagram
-![image](https://github.com/user-attachments/assets/0cac0fd2-a1d4-4b51-8262-4644e638a324)
+![Screenshot 2025-06-23 at 6 23 58 AM](https://github.com/user-attachments/assets/25a15d8c-cca9-486a-8434-c5aae374e9a5)
+
