@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import   android.content.ServiceConnection
 import android.os.Bundle
+import android.os.DeadObjectException
 import android.os.IBinder
+import android.os.RemoteException
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.project.applicationa.ui.theme.ApplicationaTheme
+import com.project.applicationa.utils.CryptoHelper.encrypt
 import com.project.applicationb.IEncryptionService
 
 
@@ -33,10 +36,16 @@ class MainActivity : ComponentActivity() {
     var encryptionService: IEncryptionService? = null
     private val connection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
+            Log.d(
+                TAG, "Service connected: $p0 " +
+                        "${p1?.isBinderAlive}" + "${p1?.pingBinder()}"
+            )
             encryptionService = IEncryptionService.Stub.asInterface(p1)
         }
 
         override fun onServiceDisconnected(p0: ComponentName?) {
+            Log.d(TAG, "Service disconnected: $p0")
+
             encryptionService = null
         }
     }
@@ -54,7 +63,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         bindToService()
-        // encryptionService?.sendOneWayMessage("Hello from client")
     }
 
     private fun bindToService() {
@@ -86,21 +94,47 @@ class MainActivity : ComponentActivity() {
             )
             Text(text = "$RESPONSE $result")
             Button(onClick = {
-                val response = encryptionService?.sendOneWayMessage(MESSAGE)
-                Log.d(TAG, "Response: $response")
-                result = response.toString()
+                try {
+                    var encryptedData = MESSAGE.encrypt()
+                    Log.d(TAG, "Encrypted Request: $encryptedData")
+                    val response = encryptionService?.sendOneWayMessage(encryptedData)
+                    Log.d(TAG, "Response: $response")
+                    result = response.toString()
+                } catch (e: RemoteException) {
+                    Log.d(TAG, "Remote Exception: $e ${e.message}")
+
+                } catch (e: DeadObjectException) {
+                    Log.d(TAG, "Dead object: $e ${e.message}")
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error: ${e.printStackTrace()}")
+                    result = "Exception: ${e.message}"
+                }
+
             }) {
                 Text(text = SEND_SECURE_MESSAGE)
             }
             Button(onClick = {
-                val response = encryptionService?.twoWayMessaging(MESSAGE)
-                Log.d(TAG, "Response: $response")
-                result = response.toString()
+                try {
+                    val response = encryptionService?.twoWayMessaging(MESSAGE.encrypt())
+                    Log.d(TAG, "Response: $response")
+                    result = response.toString()
+                } catch (e: RemoteException) {
+                    Log.d(TAG, "Remote Exception: $e ${e.message}")
+
+                } catch (e: DeadObjectException) {
+                    Log.d(TAG, "Dead object: $e ${e.message}")
+
+                } catch (e: Exception) {
+                    Log.d(TAG, "Error: $e ${e.message}")
+                    result = "Exception: ${e.printStackTrace()}"
+                }
             }) {
                 Text(text = "Send two way Messaging")
             }
         }
-
     }
+
+
 }
 

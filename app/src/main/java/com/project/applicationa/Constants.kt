@@ -1,6 +1,6 @@
 package com.project.applicationa
 
-const val MESSAGE = "Hello from client !"
+const val MESSAGE = "Hello"
 const val RESPONSE = "Response: "
 const val HEADING = "Welcome to App A (Client App)"
 const val NO_RESPONSE = "No Response"
